@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npx sv create \\. --template skeleton --types none --no-add-ons --no-install$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npx sv create \\. --template minimal --types jsdoc --no-add-ons --no-install --no-dir-check --no-download-check$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

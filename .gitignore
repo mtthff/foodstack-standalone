@@ -1,0 +1,25 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# temporär raus
+static/manifest.json
+static/icon512_maskable.png
+static/icon512_rounded.png
+
+# generated data
+data/*_portions.json
