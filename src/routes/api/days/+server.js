@@ -1,4 +1,4 @@
-import { getAllDays, getDayById, upsertDay, ensurePortionRows, getPortionsForDay } from '$lib/server/db.js';
+import { getAllDays, getDayById, upsertDay, ensurePortionRows, getPortionsForDay, cleanupEmptyDays } from '$lib/server/db.js';
 import { ok, fail, readJson } from '$lib/server/api.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -40,6 +40,7 @@ export async function POST(event) {
 	}
 
 	const dayId = await upsertDay(date);
+	await cleanupEmptyDays([date]);
 	await ensurePortionRows(dayId);
 	const portions = await getPortionsForDay(dayId);
 	return ok({ day: { id: dayId, entry_date: date }, portions }, 'Tag bereit.');

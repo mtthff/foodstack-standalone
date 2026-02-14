@@ -28,6 +28,42 @@ function getDayFilePath(date) {
 	return path.join(DATA_DIR, `${date}_portions.json`);
 }
 
+/**
+ * Entfernt leere Tagesdateien (alle Portionswerte 0), ausser fuer explizit behaltene Daten.
+ * @param {string[]} keepDates
+ * @returns {Promise<void>}
+ */
+export async function cleanupEmptyDays(keepDates = []) {
+	const keep = new Set(keepDates);
+	const files = await fs.readdir(DATA_DIR);
+
+	for (const file of files) {
+		if (!file.endsWith('_portions.json')) {
+			continue;
+		}
+
+		const date = file.split('_')[0];
+		if (keep.has(date)) {
+			continue;
+		}
+
+		const filePath = path.join(DATA_DIR, file);
+		let dayData;
+		try {
+			const data = await fs.readFile(filePath, 'utf-8');
+			dayData = JSON.parse(data);
+		} catch {
+			continue;
+		}
+
+		const portions = dayData?.portions || {};
+		const hasNonZero = Object.values(portions).some((value) => Number(value) > 0);
+		if (!hasNonZero) {
+			await fs.unlink(filePath);
+		}
+	}
+}
+
 /** Alle pyramid items laden */
 async function loadItems() {
 	try {
