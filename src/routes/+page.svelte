@@ -1,14 +1,14 @@
 <script>
-	import { onMount } from 'svelte';
-	import { base } from '$app/paths';
+	import { onMount } from "svelte";
+	import { base } from "$app/paths";
 
-	let dateValue = '';
-	let todayValue = '';
+	let dateValue = "";
+	let todayValue = "";
 	let dayId = null;
 	let portions = [];
 	let loading = true;
-	let errorMessage = '';
-	let toast = { show: false, message: '', type: 'success' };
+	let errorMessage = "";
+	let toast = { show: false, message: "", type: "success" };
 	let savingItemId = null;
 	let deleteModal = { show: false, item: null };
 	let longPressTimer = null;
@@ -20,24 +20,24 @@
 		if (!dateRegex.test(value)) {
 			return null;
 		}
-		const [year, month, day] = value.split('-').map(Number);
+		const [year, month, day] = value.split("-").map(Number);
 		return new Date(year, month - 1, day);
 	}
 
 	function formatDateValue(date) {
 		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
+		const month = String(date.getMonth() + 1).padStart(2, "0");
+		const day = String(date.getDate()).padStart(2, "0");
 		return `${year}-${month}-${day}`;
 	}
 
 	function formatDisplayDate(value) {
 		const date = parseDateValue(value);
 		if (!date) {
-			return '';
+			return "";
 		}
-		const day = String(date.getDate()).padStart(2, '0');
-		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, "0");
+		const month = String(date.getMonth() + 1).padStart(2, "0");
 		const year = String(date.getFullYear()).slice(-2);
 		return `${day}.${month}.${year}`;
 	}
@@ -56,7 +56,7 @@
 		loadDay(nextValue);
 	}
 
-	function showToast(message, type = 'success') {
+	function showToast(message, type = "success") {
 		toast = { show: true, message, type };
 		setTimeout(() => {
 			toast = { ...toast, show: false };
@@ -65,29 +65,29 @@
 
 	async function fetchJson(url, options = {}) {
 		const response = await fetch(url, {
-			headers: { 'Content-Type': 'application/json' },
-			...options
+			headers: { "Content-Type": "application/json" },
+			...options,
 		});
 
 		const payload = await response.json();
 		if (!payload.success) {
-			throw new Error(payload.message || 'Unbekannter Fehler.');
+			throw new Error(payload.message || "Unbekannter Fehler.");
 		}
 		return payload.data;
 	}
 
 	async function loadDay(date) {
 		if (!dateRegex.test(date)) {
-			errorMessage = 'Bitte ein gueltiges Datum angeben.';
+			errorMessage = "Bitte ein gueltiges Datum angeben.";
 			return;
 		}
 
 		loading = true;
-		errorMessage = '';
+		errorMessage = "";
 		try {
 			const data = await fetchJson(`${base}/api/days`, {
-				method: 'POST',
-				body: JSON.stringify({ date })
+				method: "POST",
+				body: JSON.stringify({ date }),
 			});
 
 			dayId = data.day.id;
@@ -107,15 +107,13 @@
 		savingItemId = itemId;
 		try {
 			const data = await fetchJson(`${base}/api/days/${dayId}/portions`, {
-				method: 'POST',
-				body: JSON.stringify({ itemId, delta })
+				method: "POST",
+				body: JSON.stringify({ itemId, delta }),
 			});
 
-			portions = portions.map((item) =>
-				item.id === itemId ? { ...item, portions: data.portions } : item
-			);
+			portions = portions.map((item) => (item.id === itemId ? { ...item, portions: data.portions } : item));
 		} catch (error) {
-			showToast(error.message, 'danger');
+			showToast(error.message, "danger");
 		} finally {
 			savingItemId = null;
 		}
@@ -124,45 +122,39 @@
 	function portionStatus(item) {
 		const diff = item.portions - item.recommended_portions;
 		if (diff === 0) {
-			return { label: 'OK', tone: 'success' };
+			return { label: "OK", tone: "success" };
 		}
 		if (diff > 0) {
-			return { label: `+${diff}`, tone: 'primary' };
+			return { label: `+${diff}`, tone: "primary" };
 		}
-		return { label: `${diff}`, tone: 'warning' };
+		return { label: `${diff}`, tone: "warning" };
 	}
 
 	function tierWidth(tier) {
 		// Tier 3 bekommt einen Extra-Boost für mehr Pyramiden-Optik
 		const tierNum = Number(tier);
 		if (tierNum === 3) {
-			return '90%';
+			return "90%";
 		}
 		return `${52 + tierNum * 8}%`;
 	}
 
 	function formatLabel(label) {
-		return label
-			.replace(/ue/g, 'ü')
-			.replace(/Ue/g, 'Ü')
-			.replace(/oe/g, 'ö')
-			.replace(/Oe/g, 'Ö')
-			.replace(/ae/g, 'ä')
-			.replace(/Ae/g, 'Ä');
+		return label.replace(/ue/g, "ü").replace(/Ue/g, "Ü").replace(/oe/g, "ö").replace(/Oe/g, "Ö").replace(/ae/g, "ä").replace(/Ae/g, "Ä");
 	}
 
 	function getIconPath(label) {
 		const mapping = {
-			'Extras': 'extras',
-			'Huelsenfruechte, Fleisch, Fisch, Ei': 'huelsenfruechte-fleisch-fisch-ei',
-			'Oele und Fette': 'oele-und-fette',
-			'Milch und Milchprodukte': 'milch-und-milchprodukte',
-			'Nuesse und Saaten': 'nuesse-und-saaten',
-			'Brot, Getreide, Beilagen': 'brot-getreide-beilagen',
-			'Obst und Gemuese': 'obst-und-gemuese',
-			'Getraenke': 'getraenke'
+			Extras: "extras",
+			"Huelsenfruechte, Fleisch, Fisch, Ei": "huelsenfruechte-fleisch-fisch-ei",
+			"Oele und Fette": "oele-und-fette",
+			"Milch und Milchprodukte": "milch-und-milchprodukte",
+			"Nuesse und Saaten": "nuesse-und-saaten",
+			"Brot, Getreide, Beilagen": "brot-getreide-beilagen",
+			"Obst und Gemuese": "obst-und-gemuese",
+			Getraenke: "getraenke",
 		};
-		const filename = mapping[label] || label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+		const filename = mapping[label] || label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 		return `${base}/food-icons/${filename}.png`;
 	}
 
@@ -177,9 +169,9 @@
 					index,
 					filled: index < item.portions,
 					isLast,
-					excess: isLast ? excess : 0
+					excess: isLast ? excess : 0,
 				};
-			})
+			}),
 		);
 	}
 
@@ -220,14 +212,16 @@
 
 	function getLegendInfo(label) {
 		const info = {
-			'Extras': 'Zucker, Süßigkeiten, Salzstangen, Alkohol - maximal 1 Portion pro Tag. Gelegentlich genießen, nicht täglich. Keine Empfehlung, lieber weglassen.',
-			'Huelsenfruechte, Fleisch, Fisch, Ei': 'Fleisch 300-600g/Woche, Fisch 80-150g/Woche, Eier 2-3/Woche, Hülsenfrüchte regelmäßig.',
-			'Oele und Fette': '1-2 EL Öl pro Tag, Butter/Margarine sparsam nutzen. Bevorzugt pflanzliche Öle (z.B. Rapsöl) und Nüsse',
-			'Milch und Milchprodukte': 'Milch, Joghurt, Käse - täglich verzehren, fettarme Varianten bevorzugen. Mind. 3 Portionen täglich',
-			'Nuesse und Saaten': '25g/Tag (Handvoll), z.B. Mandeln, Nüsse, Samen. Gute Fettquelle, sättigend',
-			'Brot, Getreide, Beilagen': 'Vollkornprodukte bevorzugen - Brot, Nudeln, Reis. Mind. 3 Portionen täglich',
-			'Obst und Gemuese': 'Min. 5 Portionen täglich (3× Gemüse, 2× Obst)',
-			'Getraenke': 'Wasser, Tee hauptsächlich - min. 1,5-2L pro Tag, zuckerhaltige Getränke vermeiden, maximal 1 Glas Fruchtsaft/Tag'
+			Extras: "Zucker, Süßigkeiten, Salzstangen, Alkohol - maximal 1 Portion pro Tag. Gelegentlich genießen, nicht täglich. Keine Empfehlung, lieber weglassen.",
+			"Huelsenfruechte, Fleisch, Fisch, Ei":
+				"Fleisch 300-600g/Woche, Fisch 80-150g/Woche, Eier 2-3/Woche, Hülsenfrüchte (Bohnen, Linsen, Erbsen, Kichererbsen, Sojabohnen, Lupinen, Erdnüsse) regelmäßig.",
+			"Oele und Fette": "1-2 EL Öl pro Tag, Butter/Margarine sparsam nutzen. Bevorzugt pflanzliche Öle (z.B. Rapsöl) und Nüsse",
+			"Milch und Milchprodukte": "Milch, Joghurt, Käse - täglich verzehren, fettarme Varianten bevorzugen. Mind. 3 Portionen täglich",
+			"Nuesse und Saaten":
+				"25g/Tag (Handvoll), z.B. Mandeln, Walnüsse, Haselnüsse, Cashewnüsse, Pistazien, Pekannüsse, Macadamianüsse, Paranüsse, Pinienkerne, Sonnenblumenkerne, Kürbiskerne, Sesam, Leinsamen, Chiasamen, Hanfsamen, Mohn, Schwarzkümmel, Flohsamen, Senfsamen. Gute Fettquelle, sättigend",
+			"Brot, Getreide, Beilagen": "Vollkornprodukte bevorzugen - Brot, Nudeln, Reis. Mind. 3 Portionen täglich",
+			"Obst und Gemuese": "Min. 5 Portionen täglich (3× Gemüse, 2× Obst)",
+			Getraenke: "Wasser, Tee hauptsächlich - min. 1,5-2L pro Tag, zuckerhaltige Getränke vermeiden, maximal 1 Glas Fruchtsaft/Tag",
 		};
 		return info[label] || label;
 	}
@@ -252,7 +246,6 @@
 		dateValue = todayValue;
 		loadDay(dateValue);
 	});
-
 </script>
 
 <div class="page-wrap">
@@ -260,9 +253,7 @@
 		<header class="mb-4">
 			<p class="text-uppercase small fw-semibold text-secondary mb-2">Foodstack</p>
 			<h1 class="display-6 fw-bold">Deine Ernährungspyramide</h1>
-			<p class="text-secondary">
-				Erfasse deine Portionen pro Tag. Jeder Klick addiert eine Portion.
-			</p>
+			<p class="text-secondary">Erfasse deine Portionen pro Tag. Jeder Klick addiert eine Portion.</p>
 		</header>
 
 		{#if errorMessage}
@@ -276,22 +267,10 @@
 			</div>
 		{:else}
 			<div class="date-nav" aria-label="Datum wechseln">
-				<button
-					class="date-nav-btn"
-					on:click={() => changeDay(-1)}
-					aria-label="Vorheriger Tag"
-				>
-					&lt;
-				</button>
+				<button class="date-nav-btn" on:click={() => changeDay(-1)} aria-label="Vorheriger Tag"> &lt; </button>
 				<div class="date-nav-date">{formatDisplayDate(dateValue)}</div>
 				{#if dateValue && todayValue && dateValue < todayValue}
-					<button
-						class="date-nav-btn"
-						on:click={() => changeDay(1)}
-						aria-label="Naechster Tag"
-					>
-						&gt;
-					</button>
+					<button class="date-nav-btn" on:click={() => changeDay(1)} aria-label="Naechster Tag"> &gt; </button>
 				{:else}
 					<span class="date-nav-spacer" aria-hidden="true"></span>
 				{/if}
@@ -299,53 +278,51 @@
 			<div class="pyramid">
 				{#each orderedTiers as group}
 					<div class="tier" style={`width: ${tierWidth(group.tier)}`}>
-					<div class="tier-grid">
+						<div class="tier-grid">
 							{#each buildSlots(group.items) as slot (slot.key)}
 								<button
-									class={`portion-card ${slot.filled ? 'filled' : 'empty'}`}
-								on:mousedown={() => handleMouseDown(slot.item)}
-								on:mouseup={handleMouseUp}
-								on:mouseleave={handleMouseUp}
-								on:touchstart={() => handleMouseDown(slot.item)}
-								on:touchend={handleMouseUp}
-								on:click={() => handleClick(slot.item)}
-								disabled={savingItemId === slot.item.id}
-								title={`${formatLabel(slot.item.label)}: ${slot.item.portions}/${slot.item.recommended_portions}`}
-							>								<img 
-									src={getIconPath(slot.item.label)} 
-									alt={slot.item.label}
-									class="portion-icon"
-						/>								{#if slot.filled}
-									<button 
-										class="delete-btn"
-										on:click={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-											deleteModal = { show: true, item: slot.item };
-										}}
-										title="Löschen"
-									>
-										<svg
-											class="delete-icon"
-											viewBox="0 0 24 24"
-											aria-hidden="true"
-											focusable="false"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="2"
-											stroke-linecap="round"
-											stroke-linejoin="round"
+									class={`portion-card ${slot.filled ? "filled" : "empty"}`}
+									on:mousedown={() => handleMouseDown(slot.item)}
+									on:mouseup={handleMouseUp}
+									on:mouseleave={handleMouseUp}
+									on:touchstart={() => handleMouseDown(slot.item)}
+									on:touchend={handleMouseUp}
+									on:click={() => handleClick(slot.item)}
+									disabled={savingItemId === slot.item.id}
+									title={`${formatLabel(slot.item.label)}: ${slot.item.portions}/${slot.item.recommended_portions}`}
+								>
+									<img src={getIconPath(slot.item.label)} alt={slot.item.label} class="portion-icon" />
+									{#if slot.filled}
+										<button
+											class="delete-btn"
+											on:click={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+												deleteModal = { show: true, item: slot.item };
+											}}
+											title="Löschen"
 										>
-											<path d="M3 6h18" />
-											<path d="M8 6V4h8v2" />
-											<path d="M6 6l1 14h10l1-14" />
-											<path d="M10 10v6" />
-											<path d="M14 10v6" />
-										</svg>
-									</button>
-								{/if}
-								{#if slot.isLast && slot.excess > 0}
-									<span class="excess-badge">+{slot.excess}</span>
+											<svg
+												class="delete-icon"
+												viewBox="0 0 24 24"
+												aria-hidden="true"
+												focusable="false"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+											>
+												<path d="M3 6h18" />
+												<path d="M8 6V4h8v2" />
+												<path d="M6 6l1 14h10l1-14" />
+												<path d="M10 10v6" />
+												<path d="M14 10v6" />
+											</svg>
+										</button>
+									{/if}
+									{#if slot.isLast && slot.excess > 0}
+										<span class="excess-badge">+{slot.excess}</span>
 									{/if}
 								</button>
 							{/each}
@@ -353,17 +330,13 @@
 					</div>
 				{/each}
 			</div>
-<hr>
+			<hr />
 			<div class="legend">
 				<h6 class="legend-title">Legende & Empfehlungen:</h6>
 				<div class="legend-items">
-					{#each [...new Map(portions.map(item => [item.label, item])).values()] as item}
+					{#each [...new Map(portions.map((item) => [item.label, item])).values()] as item}
 						<div class="legend-row">
-							<img 
-								src={getIconPath(item.label)} 
-								alt={item.label}
-								class="legend-icon-row"
-							/>
+							<img src={getIconPath(item.label)} alt={item.label} class="legend-icon-row" />
 							<div class="legend-content">
 								<h6 class="legend-category">{formatLabel(item.label)}</h6>
 								<p class="legend-description">{getLegendInfo(item.label)}</p>
@@ -372,7 +345,6 @@
 					{/each}
 				</div>
 			</div>
-
 		{/if}
 	</div>
 </div>
@@ -407,7 +379,14 @@
 <style>
 	:global(body) {
 		background: linear-gradient(180deg, #f7f3e9 0%, #f2efe7 55%, #ffffff 100%);
-		font-family: system-ui, -apple-system, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+		font-family:
+			system-ui,
+			-apple-system,
+			"Segoe UI",
+			"Roboto",
+			"Helvetica Neue",
+			Arial,
+			sans-serif;
 	}
 
 	.page-wrap {
@@ -447,7 +426,9 @@
 		color: #1b1b1b;
 		font-weight: 700;
 		font-size: 1.1rem;
-		transition: transform 120ms ease, box-shadow 120ms ease;
+		transition:
+			transform 120ms ease,
+			box-shadow 120ms ease;
 	}
 
 	.date-nav-btn:hover {
@@ -492,7 +473,9 @@
 		border: 1px dashed #c9c9c9;
 		background: #f2f2f2;
 		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-		transition: transform 150ms ease, background 150ms ease;
+		transition:
+			transform 150ms ease,
+			background 150ms ease;
 		cursor: pointer;
 		overflow: hidden;
 		display: flex;
@@ -637,7 +620,9 @@
 		padding: 0;
 		--webkit-appearance: none;
 		appearance: none;
-		transition: background 150ms ease, transform 100ms ease;
+		transition:
+			background 150ms ease,
+			transform 100ms ease;
 		z-index: 10;
 	}
 
@@ -802,11 +787,11 @@
 	}
 
 	@media (max-width: 412px) {
-		.tier:nth-child(n+4) {
+		.tier:nth-child(n + 4) {
 			width: 100% !important;
 		}
 
-		.tier:nth-child(n+4) .portion-card {
+		.tier:nth-child(n + 4) .portion-card {
 			flex: 1 1 auto;
 			height: auto;
 			aspect-ratio: 1;
