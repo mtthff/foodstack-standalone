@@ -8,14 +8,14 @@
   },
   {
     "id": 2,
-    "label": "Huelsenfruechte, Fleisch, Fisch, Ei",
+    "label": "Hülsenfrüchte, Fleisch, Fisch, Ei",
     "recommended_portions": 1,
     "tier": 2,
     "item_order": 1
   },
   {
     "id": 3,
-    "label": "Oele und Fette",
+    "label": "Öle und Fette",
     "recommended_portions": 2,
     "tier": 2,
     "item_order": 2
@@ -29,7 +29,7 @@
   },
   {
     "id": 5,
-    "label": "Nuesse und Saaten",
+    "label": "Nüsse und Saaten",
     "recommended_portions": 1,
     "tier": 3,
     "item_order": 2
@@ -43,14 +43,14 @@
   },
   {
     "id": 7,
-    "label": "Obst und Gemuese",
+    "label": "Obst und Gemüse",
     "recommended_portions": 5,
     "tier": 5,
     "item_order": 1
   },
   {
     "id": 8,
-    "label": "Getraenke",
+    "label": "Getränke",
     "recommended_portions": 6,
     "tier": 6,
     "item_order": 1

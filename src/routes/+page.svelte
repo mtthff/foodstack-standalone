@@ -2,20 +2,47 @@
 	import { onMount } from "svelte";
 	import { base } from "$app/paths";
 
+	/** @typedef {{ id: number, label: string, recommended_portions: number, tier: number, item_order: number, portions: number }} PortionItem */
+	/** @typedef {{ show: boolean, message: string, type: string }} ToastState */
+	/** @typedef {{ show: boolean, item: PortionItem | null }} DeleteModalState */
+	/** @typedef {{ day: { id: number }, portions: PortionItem[] }} LoadDayResponse */
+	/** @typedef {{ portions: number }} AdjustPortionResponse */
+
+	/** @type {string} */
 	let dateValue = "";
+	/** @type {string} */
 	let todayValue = "";
+	/** @type {number | null} */
 	let dayId = null;
+	/** @type {PortionItem[]} */
 	let portions = [];
+	/** @type {boolean} */
 	let loading = true;
+	/** @type {string} */
 	let errorMessage = "";
+	/** @type {ToastState} */
 	let toast = { show: false, message: "", type: "success" };
+	/** @type {number | null} */
 	let savingItemId = null;
+	/** @type {DeleteModalState} */
 	let deleteModal = { show: false, item: null };
+	/** @type {ReturnType<typeof setTimeout> | null} */
 	let longPressTimer = null;
+	/** @type {boolean} */
 	let longPressTriggered = false;
+	/** @type {Record<number, PortionItem[]>} */
+	let tiers = {};
+	/** @type {{ tier: number, items: PortionItem[] }[]} */
+	let orderedTiers = [];
 
 	const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
+	/** @param {unknown} error */
+	function getErrorMessage(error) {
+		return error instanceof Error ? error.message : "Unbekannter Fehler.";
+	}
+
+	/** @param {string} value */
 	function parseDateValue(value) {
 		if (!dateRegex.test(value)) {
 			return null;
@@ -24,6 +51,7 @@
 		return new Date(year, month - 1, day);
 	}
 
+	/** @param {Date} date */
 	function formatDateValue(date) {
 		const year = date.getFullYear();
 		const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -31,6 +59,7 @@
 		return `${year}-${month}-${day}`;
 	}
 
+	/** @param {string} value */
 	function formatDisplayDate(value) {
 		const date = parseDateValue(value);
 		if (!date) {
@@ -42,6 +71,7 @@
 		return `${day}.${month}.${year}`;
 	}
 
+	/** @param {number} delta */
 	function changeDay(delta) {
 		const baseDate = parseDateValue(dateValue);
 		if (!baseDate) {
@@ -56,6 +86,10 @@
 		loadDay(nextValue);
 	}
 
+	/**
+	 * @param {string} message
+	 * @param {string} [type]
+	 */
 	function showToast(message, type = "success") {
 		toast = { show: true, message, type };
 		setTimeout(() => {
@@ -63,12 +97,17 @@
 		}, 2800);
 	}
 
+	/**
+	 * @param {string} url
+	 * @param {RequestInit} [options]
+	 */
 	async function fetchJson(url, options = {}) {
 		const response = await fetch(url, {
 			headers: { "Content-Type": "application/json" },
 			...options,
 		});
 
+		/** @type {{ success?: boolean, message?: string, data?: any }} */
 		const payload = await response.json();
 		if (!payload.success) {
 			throw new Error(payload.message || "Unbekannter Fehler.");
@@ -76,15 +115,17 @@
 		return payload.data;
 	}
 
+	/** @param {string} date */
 	async function loadDay(date) {
 		if (!dateRegex.test(date)) {
-			errorMessage = "Bitte ein gueltiges Datum angeben.";
+			errorMessage = "Bitte ein gültiges Datum angeben.";
 			return;
 		}
 
 		loading = true;
 		errorMessage = "";
 		try {
+			/** @type {LoadDayResponse} */
 			const data = await fetchJson(`${base}/api/days`, {
 				method: "POST",
 				body: JSON.stringify({ date }),
@@ -93,12 +134,16 @@
 			dayId = data.day.id;
 			portions = data.portions;
 		} catch (error) {
-			errorMessage = error.message;
+			errorMessage = getErrorMessage(error);
 		} finally {
 			loading = false;
 		}
 	}
 
+	/**
+	 * @param {number} itemId
+	 * @param {number} delta
+	 */
 	async function adjustPortion(itemId, delta) {
 		if (!dayId) {
 			return;
@@ -106,19 +151,21 @@
 
 		savingItemId = itemId;
 		try {
+			/** @type {AdjustPortionResponse} */
 			const data = await fetchJson(`${base}/api/days/${dayId}/portions`, {
 				method: "POST",
 				body: JSON.stringify({ itemId, delta }),
 			});
 
-			portions = portions.map((item) => (item.id === itemId ? { ...item, portions: data.portions } : item));
+			portions = portions.map((item) => (item.id === itemId ? { ...item, portions: Number(data.portions) } : item));
 		} catch (error) {
-			showToast(error.message, "danger");
+			showToast(getErrorMessage(error), "danger");
 		} finally {
 			savingItemId = null;
 		}
 	}
 
+	/** @param {PortionItem} item */
 	function portionStatus(item) {
 		const diff = item.portions - item.recommended_portions;
 		if (diff === 0) {
@@ -130,6 +177,7 @@
 		return { label: `${diff}`, tone: "warning" };
 	}
 
+	/** @param {number} tier */
 	function tierWidth(tier) {
 		// Tier 3 bekommt einen Extra-Boost für mehr Pyramiden-Optik
 		const tierNum = Number(tier);
@@ -139,25 +187,30 @@
 		return `${52 + tierNum * 8}%`;
 	}
 
+	/** @param {string} label */
 	function formatLabel(label) {
 		return label.replace(/ue/g, "ü").replace(/Ue/g, "Ü").replace(/oe/g, "ö").replace(/Oe/g, "Ö").replace(/ae/g, "ä").replace(/Ae/g, "Ä");
 	}
 
+	/** @param {string} label */
+	function normalizeLabelKey(label) {
+		return label
+			.toLowerCase()
+			.replace(/ä/g, "ae")
+			.replace(/ö/g, "oe")
+			.replace(/ü/g, "ue")
+			.replace(/ß/g, "ss")
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/^-+|-+$/g, "");
+	}
+
+	/** @param {string} label */
 	function getIconPath(label) {
-		const mapping = {
-			Extras: "extras",
-			"Huelsenfruechte, Fleisch, Fisch, Ei": "huelsenfruechte-fleisch-fisch-ei",
-			"Oele und Fette": "oele-und-fette",
-			"Milch und Milchprodukte": "milch-und-milchprodukte",
-			"Nuesse und Saaten": "nuesse-und-saaten",
-			"Brot, Getreide, Beilagen": "brot-getreide-beilagen",
-			"Obst und Gemuese": "obst-und-gemuese",
-			Getraenke: "getraenke",
-		};
-		const filename = mapping[label] || label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+		const filename = normalizeLabelKey(label);
 		return `${base}/food-icons/${filename}.png`;
 	}
 
+	/** @param {PortionItem[]} items */
 	function buildSlots(items) {
 		return items.flatMap((item) =>
 			Array.from({ length: item.recommended_portions }, (_, index) => {
@@ -175,6 +228,7 @@
 		);
 	}
 
+	/** @param {PortionItem} item */
 	function handleMouseDown(item) {
 		longPressTriggered = false;
 		longPressTimer = setTimeout(() => {
@@ -192,6 +246,7 @@
 		longPressTimer = null;
 	}
 
+	/** @param {PortionItem} item */
 	function handleClick(item) {
 		if (!longPressTriggered) {
 			adjustPortion(item.id, 1);
@@ -210,20 +265,26 @@
 		deleteModal = { show: false, item: null };
 	}
 
+	/** @param {string} label */
 	function getLegendInfo(label) {
-		const info = {
-			Extras: "Zucker, Süßigkeiten, Salzstangen, Alkohol - maximal 1 Portion pro Tag. Gelegentlich genießen, nicht täglich. Keine Empfehlung, lieber weglassen.",
-			"Huelsenfruechte, Fleisch, Fisch, Ei":
-				"Fleisch 300-600g/Woche, Fisch 80-150g/Woche, Eier 2-3/Woche, Hülsenfrüchte (Bohnen, Linsen, Erbsen, Kichererbsen, Sojabohnen, Lupinen, Erdnüsse) regelmäßig.",
-			"Oele und Fette": "1-2 EL Öl pro Tag, Butter/Margarine sparsam nutzen. Bevorzugt pflanzliche Öle (z.B. Rapsöl) und Nüsse",
-			"Milch und Milchprodukte": "Milch, Joghurt, Käse - täglich verzehren, fettarme Varianten bevorzugen. Mind. 3 Portionen täglich",
-			"Nuesse und Saaten":
-				"25g/Tag (Handvoll), z.B. Mandeln, Walnüsse, Haselnüsse, Cashewnüsse, Pistazien, Pekannüsse, Macadamianüsse, Paranüsse, Pinienkerne, Sonnenblumenkerne, Kürbiskerne, Sesam, Leinsamen, Chiasamen, Hanfsamen, Mohn, Schwarzkümmel, Flohsamen, Senfsamen. Gute Fettquelle, sättigend",
-			"Brot, Getreide, Beilagen": "Vollkornprodukte bevorzugen - Brot, Nudeln, Reis. Mind. 3 Portionen täglich",
-			"Obst und Gemuese": "Min. 5 Portionen täglich (3× Gemüse, 2× Obst)",
-			Getraenke: "Wasser, Tee hauptsächlich - min. 1,5-2L pro Tag, zuckerhaltige Getränke vermeiden, maximal 1 Glas Fruchtsaft/Tag",
-		};
-		return info[label] || label;
+		const key = normalizeLabelKey(label);
+		const info = new Map([
+			["extras", "Zucker, Süßigkeiten, Salzstangen, Alkohol - maximal 1 Portion pro Tag. Gelegentlich genießen, nicht täglich. Keine Empfehlung, lieber weglassen."],
+			[
+				"huelsenfruechte-fleisch-fisch-ei",
+				"Fleisch 300-600g/Woche, Fisch 80-150g/Woche, Eier 2-3/Woche, Hülsenfrüchte (Bohnen, Linsen, Erbsen, Kichererbsen, Sojabohnen, Lupinen, Erdnüsse) regelmäßig."
+			],
+			["oele-und-fette", "1-2 EL Öl pro Tag, Butter/Margarine sparsam nutzen. Bevorzugt pflanzliche Öle (z.B. Rapsöl) und Nüsse"],
+			["milch-und-milchprodukte", "Milch, Joghurt, Käse - täglich verzehren, fettarme Varianten bevorzugen. Mind. 3 Portionen täglich"],
+			[
+				"nuesse-und-saaten",
+				"25g/Tag (Handvoll), z.B. Mandeln, Walnüsse, Haselnüsse, Cashewnüsse, Pistazien, Pekannüsse, Macadamianüsse, Paranüsse, Pinienkerne, Sonnenblumenkerne, Kürbiskerne, Sesam, Leinsamen, Chiasamen, Hanfsamen, Mohn, Schwarzkümmel, Flohsamen, Senfsamen. Gute Fettquelle, sättigend"
+			],
+			["brot-getreide-beilagen", "Vollkornprodukte bevorzugen - Brot, Nudeln, Reis. Mind. 3 Portionen täglich"],
+			["obst-und-gemuese", "Min. 5 Portionen täglich (3× Gemüse, 2× Obst)"],
+			["getraenke", "Wasser, Tee hauptsächlich - min. 1,5-2L pro Tag, zuckerhaltige Getränke vermeiden, maximal 1 Glas Fruchtsaft/Tag"]
+		]);
+		return info.get(key) || formatLabel(label);
 	}
 
 	$: tiers = portions.reduce((acc, item) => {
@@ -233,7 +294,7 @@
 		}
 		acc[key].push(item);
 		return acc;
-	}, {});
+	}, /** @type {Record<number, PortionItem[]>} */ ({}));
 
 	$: orderedTiers = Object.keys(tiers)
 		.map(Number)
@@ -270,7 +331,7 @@
 				<button class="date-nav-btn" on:click={() => changeDay(-1)} aria-label="Vorheriger Tag"> &lt; </button>
 				<div class="date-nav-date">{formatDisplayDate(dateValue)}</div>
 				{#if dateValue && todayValue && dateValue < todayValue}
-					<button class="date-nav-btn" on:click={() => changeDay(1)} aria-label="Naechster Tag"> &gt; </button>
+					<button class="date-nav-btn" on:click={() => changeDay(1)} aria-label="Nächster Tag"> &gt; </button>
 				{:else}
 					<span class="date-nav-spacer" aria-hidden="true"></span>
 				{/if}
@@ -280,27 +341,33 @@
 					<div class="tier" style={`width: ${tierWidth(group.tier)}`}>
 						<div class="tier-grid">
 							{#each buildSlots(group.items) as slot (slot.key)}
-								<button
-									class={`portion-card ${slot.filled ? "filled" : "empty"}`}
-									on:mousedown={() => handleMouseDown(slot.item)}
-									on:mouseup={handleMouseUp}
-									on:mouseleave={handleMouseUp}
-									on:touchstart={() => handleMouseDown(slot.item)}
-									on:touchend={handleMouseUp}
-									on:click={() => handleClick(slot.item)}
-									disabled={savingItemId === slot.item.id}
-									title={`${formatLabel(slot.item.label)}: ${slot.item.portions}/${slot.item.recommended_portions}`}
-								>
-									<img src={getIconPath(slot.item.label)} alt={slot.item.label} class="portion-icon" />
+								<div class="portion-card-wrap">
+									<button
+										type="button"
+										class={`portion-card ${slot.filled ? "filled" : "empty"}`}
+										on:mousedown={() => handleMouseDown(slot.item)}
+										on:mouseup={handleMouseUp}
+										on:mouseleave={handleMouseUp}
+										on:touchstart={() => handleMouseDown(slot.item)}
+										on:touchend={handleMouseUp}
+										on:click={() => handleClick(slot.item)}
+										disabled={savingItemId === slot.item.id}
+										title={`${formatLabel(slot.item.label)}: ${slot.item.portions}/${slot.item.recommended_portions}`}
+									>
+										<img src={getIconPath(slot.item.label)} alt={slot.item.label} class="portion-icon" />
+										{#if slot.isLast && slot.excess > 0}
+											<span class="excess-badge">+{slot.excess}</span>
+										{/if}
+									</button>
 									{#if slot.filled}
 										<button
+											type="button"
 											class="delete-btn"
-											on:click={(e) => {
-												e.preventDefault();
-												e.stopPropagation();
+											on:click|preventDefault|stopPropagation={() => {
 												deleteModal = { show: true, item: slot.item };
 											}}
 											title="Löschen"
+											aria-label="Portion löschen"
 										>
 											<svg
 												class="delete-icon"
@@ -321,10 +388,7 @@
 											</svg>
 										</button>
 									{/if}
-									{#if slot.isLast && slot.excess > 0}
-										<span class="excess-badge">+{slot.excess}</span>
-									{/if}
-								</button>
+								</div>
 							{/each}
 						</div>
 					</div>
@@ -358,14 +422,14 @@
 {/if}
 
 {#if deleteModal.show}
-	<div class="modal-backdrop" on:click={cancelDelete}></div>
+	<button class="modal-backdrop" on:click={cancelDelete} aria-label="Dialog schließen"></button>
 	<div class="modal-dialog">
 		<div class="modal-content">
 			<div class="modal-header">
 				<h5 class="modal-title">Portion entfernen?</h5>
 			</div>
 			<div class="modal-body">
-				<p>Möchtest du eine Portion <strong>{formatLabel(deleteModal.item?.label)}</strong> entfernen?</p>
+				<p>Möchtest du eine Portion <strong>{formatLabel(deleteModal.item?.label ?? "")}</strong> entfernen?</p>
 				<p class="text-secondary small">Aktuell: {deleteModal.item?.portions} Portionen</p>
 			</div>
 			<div class="modal-footer">
@@ -465,10 +529,16 @@
 		justify-content: center;
 	}
 
-	.portion-card {
+	.portion-card-wrap {
 		position: relative;
 		flex: 0 0 110px;
 		height: 110px;
+	}
+
+	.portion-card {
+		position: relative;
+		width: 100%;
+		height: 100%;
 		border-radius: 0.9rem;
 		border: 1px dashed #c9c9c9;
 		background: #f2f2f2;
@@ -759,7 +829,7 @@
 			gap: 0.4rem;
 		}
 
-		.portion-card {
+		.portion-card-wrap {
 			flex: 0 0 75px;
 			height: 75px;
 		}
@@ -791,7 +861,7 @@
 			width: 100% !important;
 		}
 
-		.tier:nth-child(n + 4) .portion-card {
+		.tier:nth-child(n + 4) .portion-card-wrap {
 			flex: 1 1 auto;
 			height: auto;
 			aspect-ratio: 1;

@@ -2,6 +2,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+/** @typedef {{ id:number, label:string, recommended_portions:number, tier:number, item_order:number }} PyramidItem */
+/** @typedef {{ id:number, entry_date:string, portions:Record<number, number> }} DayData */
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
 const ITEMS_FILE = path.join(DATA_DIR, 'pyramid_items.json');
@@ -13,17 +16,20 @@ let initialized = false;
 // ============================================================================
 
 /** Datum (YYYY-MM-DD) zu numerischer ID konvertieren */
+/** @param {string} dateStr */
 function dateToId(dateStr) {
 	return Number(dateStr.replace(/-/g, ''));
 }
 
 /** Numerische ID zu Datum (YYYY-MM-DD) konvertieren */
+/** @param {number} id */
 function idToDate(id) {
 	const str = String(id);
 	return `${str.slice(0, 4)}-${str.slice(4, 6)}-${str.slice(6, 8)}`;
 }
 
 /** Dateipfad für Tages-JSON generieren */
+/** @param {string} date */
 function getDayFilePath(date) {
 	return path.join(DATA_DIR, `${date}_portions.json`);
 }
@@ -48,10 +54,11 @@ export async function cleanupEmptyDays(keepDates = []) {
 		}
 
 		const filePath = path.join(DATA_DIR, file);
-		let dayData;
+		/** @type {DayData | null} */
+		let dayData = null;
 		try {
 			const data = await fs.readFile(filePath, 'utf-8');
-			dayData = JSON.parse(data);
+			dayData = /** @type {DayData} */ (JSON.parse(data));
 		} catch {
 			continue;
 		}
@@ -68,13 +75,15 @@ export async function cleanupEmptyDays(keepDates = []) {
 async function loadItems() {
 	try {
 		const data = await fs.readFile(ITEMS_FILE, 'utf-8');
-		return JSON.parse(data);
+		return /** @type {PyramidItem[]} */ (JSON.parse(data));
 	} catch {
+		/** @type {PyramidItem[]} */
 		return [];
 	}
 }
 
 /** Pyramid items speichern */
+/** @param {PyramidItem[]} items */
 async function saveItems(items) {
 	await fs.mkdir(DATA_DIR, { recursive: true });
 	await fs.writeFile(ITEMS_FILE, JSON.stringify(items, null, 2), 'utf-8');
@@ -98,13 +107,13 @@ export async function initDb() {
 	if (items.length === 0) {
 		const seedItems = [
 			{ id: 1, label: 'Extras', recommended_portions: 1, tier: 1, item_order: 1 },
-			{ id: 2, label: 'Huelsenfruechte, Fleisch, Fisch, Ei', recommended_portions: 1, tier: 2, item_order: 1 },
-			{ id: 3, label: 'Oele und Fette', recommended_portions: 2, tier: 2, item_order: 2 },
+			{ id: 2, label: 'Hülsenfrüchte, Fleisch, Fisch, Ei', recommended_portions: 1, tier: 2, item_order: 1 },
+			{ id: 3, label: 'Öle und Fette', recommended_portions: 2, tier: 2, item_order: 2 },
 			{ id: 4, label: 'Milch und Milchprodukte', recommended_portions: 2, tier: 3, item_order: 1 },
-			{ id: 5, label: 'Nuesse und Saaten', recommended_portions: 1, tier: 3, item_order: 2 },
+			{ id: 5, label: 'Nüsse und Saaten', recommended_portions: 1, tier: 3, item_order: 2 },
 			{ id: 6, label: 'Brot, Getreide, Beilagen', recommended_portions: 4, tier: 4, item_order: 1 },
-			{ id: 7, label: 'Obst und Gemuese', recommended_portions: 5, tier: 5, item_order: 1 },
-			{ id: 8, label: 'Getraenke', recommended_portions: 6, tier: 6, item_order: 1 }
+			{ id: 7, label: 'Obst und Gemüse', recommended_portions: 5, tier: 5, item_order: 1 },
+			{ id: 8, label: 'Getränke', recommended_portions: 6, tier: 6, item_order: 1 }
 		];
 		await saveItems(seedItems);
 	}
@@ -116,14 +125,14 @@ export async function initDb() {
 // PYRAMID ITEMS
 // ============================================================================
 
-/** @returns {Promise<Array>} */
+/** @returns {Promise<PyramidItem[]>} */
 export async function getAllItems() {
 	return await loadItems();
 }
 
 /**
  * @param {number} id
- * @returns {Promise<object|null>}
+ * @returns {Promise<PyramidItem|null>}
  */
 export async function getItemById(id) {
 	const items = await loadItems();
@@ -140,6 +149,7 @@ export async function getItemById(id) {
 export async function createItem(label, recommendedPortions, tier, itemOrder) {
 	const items = await loadItems();
 	const newId = items.length > 0 ? Math.max(...items.map(i => i.id)) + 1 : 1;
+	/** @type {PyramidItem} */
 	const newItem = {
 		id: newId,
 		label,
@@ -190,7 +200,7 @@ export async function deleteItem(id) {
 		if (file.endsWith('_portions.json')) {
 			const filePath = path.join(DATA_DIR, file);
 			const data = await fs.readFile(filePath, 'utf-8');
-			const dayData = JSON.parse(data);
+			const dayData = /** @type {DayData} */ (JSON.parse(data));
 			if (dayData.portions && id in dayData.portions) {
 				delete dayData.portions[id];
 				await fs.writeFile(filePath, JSON.stringify(dayData, null, 2), 'utf-8');
@@ -249,6 +259,7 @@ export async function upsertDay(date) {
 		await fs.access(filePath);
 	} catch {
 		const items = await loadItems();
+		/** @type {DayData} */
 		const dayData = {
 			id: dayId,
 			entry_date: date,
@@ -277,7 +288,7 @@ export async function updateDay(id, newDate) {
 	const newId = dateToId(newDate);
 
 	const data = await fs.readFile(oldPath, 'utf-8');
-	const dayData = JSON.parse(data);
+	const dayData = /** @type {DayData} */ (JSON.parse(data));
 	dayData.id = newId;
 	dayData.entry_date = newDate;
 
@@ -314,7 +325,7 @@ export async function ensurePortionRows(dayId) {
 
 	try {
 		const data = await fs.readFile(filePath, 'utf-8');
-		const dayData = JSON.parse(data);
+		const dayData = /** @type {DayData} */ (JSON.parse(data));
 
 		let modified = false;
 		items.forEach(item => {
@@ -341,12 +352,13 @@ export async function getPortionsForDay(dayId) {
 	const filePath = getDayFilePath(date);
 	const items = await loadItems();
 
+	/** @type {DayData} */
 	let dayData;
 	try {
 		const data = await fs.readFile(filePath, 'utf-8');
-		dayData = JSON.parse(data);
+		dayData = /** @type {DayData} */ (JSON.parse(data));
 	} catch {
-		dayData = { portions: {} };
+		dayData = { id: dayId, entry_date: date, portions: {} };
 	}
 
 	return items.map(item => ({
@@ -365,14 +377,15 @@ export async function incrementPortion(dayId, itemId, delta) {
 	const date = idToDate(dayId);
 	const filePath = getDayFilePath(date);
 
+	/** @type {DayData} */
 	let dayData;
 	try {
 		const data = await fs.readFile(filePath, 'utf-8');
-		dayData = JSON.parse(data);
+		dayData = /** @type {DayData} */ (JSON.parse(data));
 	} catch {
 		await upsertDay(date);
 		const newData = await fs.readFile(filePath, 'utf-8');
-		dayData = JSON.parse(newData);
+		dayData = /** @type {DayData} */ (JSON.parse(newData));
 	}
 
 	const current = dayData.portions[itemId] || 0;
@@ -393,14 +406,15 @@ export async function setPortion(dayId, itemId, portions) {
 	const date = idToDate(dayId);
 	const filePath = getDayFilePath(date);
 
+	/** @type {DayData} */
 	let dayData;
 	try {
 		const data = await fs.readFile(filePath, 'utf-8');
-		dayData = JSON.parse(data);
+		dayData = /** @type {DayData} */ (JSON.parse(data));
 	} catch {
 		await upsertDay(date);
 		const newData = await fs.readFile(filePath, 'utf-8');
-		dayData = JSON.parse(newData);
+		dayData = /** @type {DayData} */ (JSON.parse(newData));
 	}
 
 	dayData.portions[itemId] = portions;
