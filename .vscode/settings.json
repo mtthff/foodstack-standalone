@@ -7,6 +7,9 @@
         "/^npx sv create \\. --template minimal --types jsdoc --no-add-ons --no-install --no-dir-check --no-download-check$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "npm install": true,
+        "git add": true,
+        "git commit": true
     }
 }
