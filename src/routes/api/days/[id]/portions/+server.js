@@ -1,4 +1,4 @@
-import { ensurePortionRows, getPortionsForDay, incrementPortion, setPortion } from '$lib/server/db.js';
+import { getPortionsForDay, incrementPortion, setPortion } from '$lib/server/db.js';
 import { ok, fail, readJson } from '$lib/server/api.js';
 
 /** @type {import('@sveltejs/kit').RequestHandler} */
@@ -8,7 +8,6 @@ export async function GET({ params }) {
 		return fail('Ungueltige ID.');
 	}
 
-	await ensurePortionRows(dayId);
 	const portions = await getPortionsForDay(dayId);
 	return ok(portions);
 }

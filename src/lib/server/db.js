@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
 const ITEMS_FILE = path.join(DATA_DIR, 'pyramid_items.json');
+const CURRENT_DAY_FILE = path.join(DATA_DIR, 'current.json');
 
 let initialized = false;
 
@@ -26,49 +27,6 @@ function dateToId(dateStr) {
 function idToDate(id) {
 	const str = String(id);
 	return `${str.slice(0, 4)}-${str.slice(4, 6)}-${str.slice(6, 8)}`;
-}
-
-/** Dateipfad für Tages-JSON generieren */
-/** @param {string} date */
-function getDayFilePath(date) {
-	return path.join(DATA_DIR, `${date}_portions.json`);
-}
-
-/**
- * Entfernt leere Tagesdateien (alle Portionswerte 0), ausser fuer explizit behaltene Daten.
- * @param {string[]} keepDates
- * @returns {Promise<void>}
- */
-export async function cleanupEmptyDays(keepDates = []) {
-	const keep = new Set(keepDates);
-	const files = await fs.readdir(DATA_DIR);
-
-	for (const file of files) {
-		if (!file.endsWith('_portions.json')) {
-			continue;
-		}
-
-		const date = file.split('_')[0];
-		if (keep.has(date)) {
-			continue;
-		}
-
-		const filePath = path.join(DATA_DIR, file);
-		/** @type {DayData | null} */
-		let dayData = null;
-		try {
-			const data = await fs.readFile(filePath, 'utf-8');
-			dayData = /** @type {DayData} */ (JSON.parse(data));
-		} catch {
-			continue;
-		}
-
-		const portions = dayData?.portions || {};
-		const hasNonZero = Object.values(portions).some((value) => Number(value) > 0);
-		if (!hasNonZero) {
-			await fs.unlink(filePath);
-		}
-	}
 }
 
 /** Alle pyramid items laden */
@@ -193,58 +151,27 @@ export async function deleteItem(id) {
 	const items = await loadItems();
 	const filtered = items.filter(item => item.id !== id);
 	await saveItems(filtered);
-
-	// Auch aus allen Tages-Dateien entfernen
-	const files = await fs.readdir(DATA_DIR);
-	for (const file of files) {
-		if (file.endsWith('_portions.json')) {
-			const filePath = path.join(DATA_DIR, file);
-			const data = await fs.readFile(filePath, 'utf-8');
-			const dayData = /** @type {DayData} */ (JSON.parse(data));
-			if (dayData.portions && id in dayData.portions) {
-				delete dayData.portions[id];
-				await fs.writeFile(filePath, JSON.stringify(dayData, null, 2), 'utf-8');
-			}
-		}
-	}
 }
 
 // ============================================================================
 // DAYS
 // ============================================================================
 
-/** @returns {Promise<Array<{id:number,entry_date:string}>>} */
-export async function getAllDays() {
-	const files = await fs.readdir(DATA_DIR);
-	const days = [];
-
-	for (const file of files) {
-		if (file.endsWith('_portions.json')) {
-			const date = file.split('_')[0];
-			days.push({
-				id: dateToId(date),
-				entry_date: date
-			});
-		}
-	}
-
-	return days.sort((a, b) => b.id - a.id);
-}
-
-/**
- * @param {number} id
- * @returns {Promise<{id:number,entry_date:string}|null>}
- */
-export async function getDayById(id) {
-	const date = idToDate(id);
-	const filePath = getDayFilePath(date);
-
+/** Lädt die aktuelle Tagesdatei oder gibt null zurück */
+async function loadCurrentDay() {
 	try {
-		await fs.access(filePath);
-		return { id, entry_date: date };
+		const data = await fs.readFile(CURRENT_DAY_FILE, 'utf-8');
+		return /** @type {DayData} */ (JSON.parse(data));
 	} catch {
 		return null;
 	}
+}
+
+/** Speichert die aktuelle Tagesdatei */
+/** @param {DayData} dayData */
+async function saveCurrentDay(dayData) {
+	await fs.mkdir(DATA_DIR, { recursive: true });
+	await fs.writeFile(CURRENT_DAY_FILE, JSON.stringify(dayData, null, 2), 'utf-8');
 }
 
 /**
@@ -253,61 +180,36 @@ export async function getDayById(id) {
  */
 export async function upsertDay(date) {
 	const dayId = dateToId(date);
-	const filePath = getDayFilePath(date);
+	const items = await loadItems();
+	const currentDay = await loadCurrentDay();
 
-	try {
-		await fs.access(filePath);
-	} catch {
-		const items = await loadItems();
-		/** @type {DayData} */
-		const dayData = {
+	/** @type {DayData} */
+	let dayData;
+
+	// Wenn es einen gespeicherten Tag gibt und das Datum gleich ist, behalte die Daten
+	if (currentDay && currentDay.id === dayId) {
+		// Datum ist gleich - behalte die Daten, aber stelle sicher alle Items vorhanden sind
+		dayData = currentDay;
+		// Füge neue Items hinzu, falls es welche gibt
+		items.forEach(item => {
+			if (!(item.id in dayData.portions)) {
+				dayData.portions[item.id] = 0;
+			}
+		});
+	} else {
+		// Neues Datum oder erste Nutzung - setze alles auf 0
+		dayData = {
 			id: dayId,
 			entry_date: date,
 			portions: {}
 		};
-
 		items.forEach(item => {
 			dayData.portions[item.id] = 0;
 		});
-
-		await fs.writeFile(filePath, JSON.stringify(dayData, null, 2), 'utf-8');
 	}
 
+	await saveCurrentDay(dayData);
 	return dayId;
-}
-
-/**
- * @param {number} id
- * @param {string} newDate
- * @returns {Promise<void>}
- */
-export async function updateDay(id, newDate) {
-	const oldDate = idToDate(id);
-	const oldPath = getDayFilePath(oldDate);
-	const newPath = getDayFilePath(newDate);
-	const newId = dateToId(newDate);
-
-	const data = await fs.readFile(oldPath, 'utf-8');
-	const dayData = /** @type {DayData} */ (JSON.parse(data));
-	dayData.id = newId;
-	dayData.entry_date = newDate;
-
-	await fs.writeFile(newPath, JSON.stringify(dayData, null, 2), 'utf-8');
-	await fs.unlink(oldPath);
-}
-
-/**
- * @param {number} id
- * @returns {Promise<void>}
- */
-export async function deleteDay(id) {
-	const date = idToDate(id);
-	const filePath = getDayFilePath(date);
-	try {
-		await fs.unlink(filePath);
-	} catch {
-		// Datei existiert nicht, ignorieren
-	}
 }
 
 // ============================================================================
@@ -316,54 +218,24 @@ export async function deleteDay(id) {
 
 /**
  * @param {number} dayId
- * @returns {Promise<void>}
- */
-export async function ensurePortionRows(dayId) {
-	const date = idToDate(dayId);
-	const filePath = getDayFilePath(date);
-	const items = await loadItems();
-
-	try {
-		const data = await fs.readFile(filePath, 'utf-8');
-		const dayData = /** @type {DayData} */ (JSON.parse(data));
-
-		let modified = false;
-		items.forEach(item => {
-			if (!(item.id in dayData.portions)) {
-				dayData.portions[item.id] = 0;
-				modified = true;
-			}
-		});
-
-		if (modified) {
-			await fs.writeFile(filePath, JSON.stringify(dayData, null, 2), 'utf-8');
-		}
-	} catch {
-		await upsertDay(date);
-	}
-}
-
-/**
- * @param {number} dayId
  * @returns {Promise<Array<{id:number,label:string,recommended_portions:number,tier:number,item_order:number,portions:number}>>}
  */
 export async function getPortionsForDay(dayId) {
-	const date = idToDate(dayId);
-	const filePath = getDayFilePath(date);
 	const items = await loadItems();
+	const currentDay = await loadCurrentDay();
 
-	/** @type {DayData} */
-	let dayData;
-	try {
-		const data = await fs.readFile(filePath, 'utf-8');
-		dayData = /** @type {DayData} */ (JSON.parse(data));
-	} catch {
-		dayData = { id: dayId, entry_date: date, portions: {} };
+	// Wenn der gespeicherte Tag nicht dem angeforderten Tag entspricht,
+	// gebe 0 Portionen für alle Items zurück (neuer Tag)
+	if (!currentDay || currentDay.id !== dayId) {
+		return items.map(item => ({
+			...item,
+			portions: 0
+		}));
 	}
 
 	return items.map(item => ({
 		...item,
-		portions: dayData.portions[item.id] || 0
+		portions: currentDay.portions[item.id] || 0
 	}));
 }
 
@@ -374,25 +246,29 @@ export async function getPortionsForDay(dayId) {
  * @returns {Promise<number>}
  */
 export async function incrementPortion(dayId, itemId, delta) {
-	const date = idToDate(dayId);
-	const filePath = getDayFilePath(date);
+	const items = await loadItems();
+	let currentDay = await loadCurrentDay();
 
-	/** @type {DayData} */
-	let dayData;
-	try {
-		const data = await fs.readFile(filePath, 'utf-8');
-		dayData = /** @type {DayData} */ (JSON.parse(data));
-	} catch {
-		await upsertDay(date);
-		const newData = await fs.readFile(filePath, 'utf-8');
-		dayData = /** @type {DayData} */ (JSON.parse(newData));
+	// Wenn der aktuelle Tag anders ist, initialisiere mit neuem Tag
+	if (!currentDay || currentDay.id !== dayId) {
+		const date = idToDate(dayId);
+		/** @type {DayData} */
+		const newDay = {
+			id: dayId,
+			entry_date: date,
+			portions: {}
+		};
+		items.forEach(item => {
+			newDay.portions[item.id] = 0;
+		});
+		currentDay = newDay;
 	}
 
-	const current = dayData.portions[itemId] || 0;
+	const current = currentDay.portions[itemId] || 0;
 	const newValue = Math.max(current + delta, 0);
-	dayData.portions[itemId] = newValue;
+	currentDay.portions[itemId] = newValue;
 
-	await fs.writeFile(filePath, JSON.stringify(dayData, null, 2), 'utf-8');
+	await saveCurrentDay(currentDay);
 	return newValue;
 }
 
@@ -403,21 +279,25 @@ export async function incrementPortion(dayId, itemId, delta) {
  * @returns {Promise<number>}
  */
 export async function setPortion(dayId, itemId, portions) {
-	const date = idToDate(dayId);
-	const filePath = getDayFilePath(date);
+	const items = await loadItems();
+	let currentDay = await loadCurrentDay();
 
-	/** @type {DayData} */
-	let dayData;
-	try {
-		const data = await fs.readFile(filePath, 'utf-8');
-		dayData = /** @type {DayData} */ (JSON.parse(data));
-	} catch {
-		await upsertDay(date);
-		const newData = await fs.readFile(filePath, 'utf-8');
-		dayData = /** @type {DayData} */ (JSON.parse(newData));
+	// Wenn der aktuelle Tag anders ist, initialisiere mit neuem Tag
+	if (!currentDay || currentDay.id !== dayId) {
+		const date = idToDate(dayId);
+		/** @type {DayData} */
+		const newDay = {
+			id: dayId,
+			entry_date: date,
+			portions: {}
+		};
+		items.forEach(item => {
+			newDay.portions[item.id] = 0;
+		});
+		currentDay = newDay;
 	}
 
-	dayData.portions[itemId] = portions;
-	await fs.writeFile(filePath, JSON.stringify(dayData, null, 2), 'utf-8');
+	currentDay.portions[itemId] = portions;
+	await saveCurrentDay(currentDay);
 	return portions;
 }

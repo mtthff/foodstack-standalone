@@ -8,10 +8,6 @@
 	/** @typedef {{ day: { id: number }, portions: PortionItem[] }} LoadDayResponse */
 	/** @typedef {{ portions: number }} AdjustPortionResponse */
 
-	/** @type {string} */
-	let dateValue = "";
-	/** @type {string} */
-	let todayValue = "";
 	/** @type {number | null} */
 	let dayId = null;
 	/** @type {PortionItem[]} */
@@ -42,48 +38,12 @@
 		return error instanceof Error ? error.message : "Unbekannter Fehler.";
 	}
 
-	/** @param {string} value */
-	function parseDateValue(value) {
-		if (!dateRegex.test(value)) {
-			return null;
-		}
-		const [year, month, day] = value.split("-").map(Number);
-		return new Date(year, month - 1, day);
-	}
-
 	/** @param {Date} date */
 	function formatDateValue(date) {
 		const year = date.getFullYear();
 		const month = String(date.getMonth() + 1).padStart(2, "0");
 		const day = String(date.getDate()).padStart(2, "0");
 		return `${year}-${month}-${day}`;
-	}
-
-	/** @param {string} value */
-	function formatDisplayDate(value) {
-		const date = parseDateValue(value);
-		if (!date) {
-			return "";
-		}
-		const day = String(date.getDate()).padStart(2, "0");
-		const month = String(date.getMonth() + 1).padStart(2, "0");
-		const year = String(date.getFullYear()).slice(-2);
-		return `${day}.${month}.${year}`;
-	}
-
-	/** @param {number} delta */
-	function changeDay(delta) {
-		const baseDate = parseDateValue(dateValue);
-		if (!baseDate) {
-			return;
-		}
-		baseDate.setDate(baseDate.getDate() + delta);
-		const nextValue = formatDateValue(baseDate);
-		if (delta > 0 && todayValue && nextValue > todayValue) {
-			return;
-		}
-		dateValue = nextValue;
-		loadDay(nextValue);
 	}
 
 	/**
@@ -163,18 +123,6 @@
 		} finally {
 			savingItemId = null;
 		}
-	}
-
-	/** @param {PortionItem} item */
-	function portionStatus(item) {
-		const diff = item.portions - item.recommended_portions;
-		if (diff === 0) {
-			return { label: "OK", tone: "success" };
-		}
-		if (diff > 0) {
-			return { label: `+${diff}`, tone: "primary" };
-		}
-		return { label: `${diff}`, tone: "warning" };
 	}
 
 	/** @param {number} tier */
@@ -303,9 +251,8 @@
 
 	onMount(() => {
 		const today = new Date();
-		todayValue = formatDateValue(today);
-		dateValue = todayValue;
-		loadDay(dateValue);
+		const dateStr = formatDateValue(today);
+		loadDay(dateStr);
 	});
 </script>
 
@@ -314,7 +261,6 @@
 		<header class="mb-4">
 			<p class="text-uppercase small fw-semibold text-secondary mb-2">Foodstack</p>
 			<h1 class="display-6 fw-bold">Deine Ernährungspyramide</h1>
-			<p class="text-secondary">Erfasse deine Portionen pro Tag. Jeder Klick addiert eine Portion.</p>
 		</header>
 
 		{#if errorMessage}
@@ -327,15 +273,6 @@
 				<p class="text-secondary mt-3">Pyramide wird vorbereitet...</p>
 			</div>
 		{:else}
-			<div class="date-nav" aria-label="Datum wechseln">
-				<button class="date-nav-btn" on:click={() => changeDay(-1)} aria-label="Vorheriger Tag"> &lt; </button>
-				<div class="date-nav-date">{formatDisplayDate(dateValue)}</div>
-				{#if dateValue && todayValue && dateValue < todayValue}
-					<button class="date-nav-btn" on:click={() => changeDay(1)} aria-label="Nächster Tag"> &gt; </button>
-				{:else}
-					<span class="date-nav-spacer" aria-hidden="true"></span>
-				{/if}
-			</div>
 			<div class="pyramid">
 				{#each orderedTiers as group}
 					<div class="tier" style={`width: ${tierWidth(group.tier)}`}>
@@ -462,55 +399,6 @@
 		flex-direction: column;
 		gap: 1.5rem;
 		align-items: center;
-	}
-
-	.date-nav {
-		display: grid;
-		grid-template-columns: 2.5rem 1fr 2.5rem;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.5rem 0.75rem;
-		margin: 0 auto 1.5rem;
-		max-width: 320px;
-		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.85);
-		border: 1px solid rgba(0, 0, 0, 0.08);
-		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
-	}
-
-	.date-nav-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 2.25rem;
-		height: 2.25rem;
-		border-radius: 999px;
-		border: 1px solid rgba(0, 0, 0, 0.12);
-		background: #ffffff;
-		color: #1b1b1b;
-		font-weight: 700;
-		font-size: 1.1rem;
-		transition:
-			transform 120ms ease,
-			box-shadow 120ms ease;
-	}
-
-	.date-nav-btn:hover {
-		transform: translateY(-1px);
-		box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
-	}
-
-	.date-nav-date {
-		text-align: center;
-		font-weight: 600;
-		letter-spacing: 0.06em;
-		color: #2a2a2a;
-	}
-
-	.date-nav-spacer {
-		display: block;
-		width: 2.25rem;
-		height: 2.25rem;
 	}
 
 	.tier {
